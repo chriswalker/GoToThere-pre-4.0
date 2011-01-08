@@ -1,0 +1,5 @@
+h2. README for Go To There
+
+Go To There is a free app available on the Android Market, published by That Amazing Web Ltd. It provides visual directions from the user's current location, to a close-by, walkable destination, using Google's Directions API.
+
+It is licensed under the Apache 2.0 license. For more information about That Amazing Web Ltd, visit www.thatamazingweb.com.

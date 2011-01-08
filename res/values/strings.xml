@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright 2011 That Amazing Web Ltd.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+         http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+-->
+<resources>
+    <!-- =================================================================== -->
+    <!-- General strings                                                     -->
+    <!-- =================================================================== -->
+    
+    <string name="app_name">Go To There</string>
+    
+    <string name="yes_button_label">Yes</string>
+    <string name="no_button_label">No</string>
+    
+    <string name="waiting_text">Waiting for GPS fix...</string>
+
+    <string name="json_error_text">Could not process the response from the server!</string>
+    <string name="general_error_text">Could not obtain directions from the server - please try again shortly.</string>
+
+    <!-- Directions API URL -->
+    <string name="directions_url">http://maps.googleapis.com/maps/api/directions/json</string>
+    
+    <!-- =================================================================== -->
+    <!-- GoToThere Activity strings                                           --> 
+    <!-- =================================================================== -->
+    
+    <!-- Marker placement dialog strings -->
+    <string name="marker_dialog_title">Cancel marker placement?</string>
+    <string name="marker_dialog_text">You have not set a marker to navigate to - are you sure you want to cancel?</string>
+    
+    <!-- Cancel Navigation dialog strings -->
+    <string name="navigation_dialog_title">Cancel navigation?</string>
+    <string name="navigation_dialog_text">Are you sure you want to cancel navigation?</string>   
+
+    <!-- GPS activation dialog strings -->
+    <string name="gps_dialog_title">GPS is disabled</string>
+    <string name="gps_dialog_text">Do you want to go to the locations settings to enable GPS?</string>  
+    
+    <!--  Bearing button strings -->
+    <string name="place_marker_text">Tap on the map where you want to navigate to, or press the Navigate button again to cancel</string>
+    <string name="cancel_button_label">Cancel</string>
+    <string name="done_button_label">Done</string>
+    
+    <!-- First-run dialog string -->
+    <string name="first_run_dialog_title">Go To There</string>
+    <string name="first_run_text">Go To There uses directions provided by Google\'s Directions service.\n\nWalking directions provided by this service are in beta - note that routes described may be missing sidewalks/pavements or other pedestrian paths.\n\nPlease use your judgement when following directions provided by this application!\n</string>
+    <string name="accept_button_label">Accept</string>
+    <string name="dont_accept_button_label">Don\'t Accept</string>
+    
+    <!-- =================================================================== -->
+    <!-- Array Strings                                                       -->
+    <!-- =================================================================== -->
+
+    <!--
+    Map types array
+    -->
+    <string name="map_type_title">Select a map type</string>
+    <string name="map_label">Map</string>
+    <string name="satellite_label">Satellite</string>
+    
+    <!-- =================================================================== -->
+    <!-- Menu options                                                        -->
+    <!-- =================================================================== -->
+    <string name="map_type_label">Map Type</string> 
+    <string name="refresh_label">Refresh directions</string>     
+</resources>
