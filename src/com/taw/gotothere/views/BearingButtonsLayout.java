@@ -44,7 +44,7 @@ public class BearingButtonsLayout extends LinearLayout {
 		li.inflate(R.layout.bearing_buttons, this, true);
 		
 		cancel = (Button) findViewById(R.id.cancel);
-		done = (Button) findViewById(R.id.done);
+		//done = (Button) findViewById(R.id.done);
 	}
 
 	/**
