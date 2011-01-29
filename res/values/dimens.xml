@@ -16,4 +16,5 @@
 -->
 <resources>
     <dimen name="actionbar_height">45dip</dimen>
+    <dimen name="locationbar_height">100dip</dimen>
 </resources>
