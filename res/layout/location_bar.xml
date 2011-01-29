@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright 2011 That Amazing Web Ltd.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+         http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+-->
+<!-- Navigate bar, hidden unless the user taps the marker button -->
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/LocationBar" >
+<!--    android:layoutAnimation="@anim/location_bar_layout" > -->
+    
+    <TextView android:id="@+id/text"
+        android:text="@string/location_text"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:paddingBottom="5dp"
+        android:textColor="@android:color/white" />
+    
+    <Button android:id="@+id/go"
+        android:text="@string/go_button_label"
+        android:enabled="false"
+        android:layout_below="@id/text"
+        android:layout_alignParentRight="true"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:onClick="onGoButtonClick" />
+        
+    <Button android:id="@+id/cancel"
+        android:text="@string/cancel_button_label"
+        android:layout_below="@id/text"
+        android:layout_toLeftOf="@id/go"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:onClick="onCancelButtonClick" />
+        
+    <AutoCompleteTextView android:id="@+id/location"
+        android:textColor="@android:color/black"
+        android:inputType="text"
+        android:ellipsize="end"
+        android:hint="@string/address_hint"
+        android:imeOptions="actionGo"
+        android:layout_below="@id/text"
+        android:layout_toLeftOf="@id/cancel"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content" />
+        <!--android:layout_marginLeft="5dp"-->
+</RelativeLayout>
