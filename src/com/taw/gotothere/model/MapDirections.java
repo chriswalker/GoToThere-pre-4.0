@@ -41,6 +41,10 @@ public class MapDirections implements Serializable {
 	private String startAddress;
 	/** End address. */
 	private String endAddress;
+	/** Start location. */
+	private LatLng startLocation;
+	/** End location. */
+	private LatLng endLocation;
 	
 	/** Any copyright. */
 	private String copyright;
@@ -220,5 +224,36 @@ public class MapDirections implements Serializable {
 	 */
 	public void setError(int error) {
 		this.error = error;
-	}	
+	}
+
+	/**
+	 * @return the startLocation
+	 */
+	public LatLng getStartLocation() {
+		return startLocation;
+	}
+
+	/**
+	 * @param lat integer Latitiude (in microdegrees)
+	 * @param lat integer Longitude (in microdegrees)
+	 */
+	public void setStartLocation(int lat, int lng) {
+		this.startLocation = new LatLng(lat, lng);
+	}
+
+	/**
+	 * @return the endLocation
+	 */
+	public LatLng getEndLocation() {
+		return endLocation;
+	}
+
+	/**
+	 * @param lat integer Latitiude (in microdegrees)
+	 * @param lat integer Longitude (in microdegrees)
+	 */
+
+	public void setEndLocation(int lat, int lng) {
+		this.endLocation = new LatLng(lat, lng);
+	}
 }
