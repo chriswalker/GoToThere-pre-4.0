@@ -16,14 +16,14 @@
 -->
 <resources>
     
-    <!-- Urbex Theme styles -->
+    <!-- GoToThere Theme styles -->
     <style name="WindowTitleBackground">
         <item name="android:background">@drawable/actionbar_gradient</item>
     </style>
 
     <!-- Actionbar styles -->
     <style name="ActionBar">
-        <item name="android:id">@id/actionbar_container</item>
+        <item name="android:id">@id/actionbar</item>
         <item name="android:layout_width">fill_parent</item>
         <item name="android:layout_height">@dimen/actionbar_height</item>
         <item name="android:orientation">horizontal</item>
@@ -62,6 +62,13 @@
         <item name="android:layout_marginRight">15dip</item>
         <item name="android:layout_marginTop">15dip</item> 
         <item name="android:indeterminate">true</item> 
+    </style>
+    
+    <!-- Location styles -->
+    <style name="LocationBar" parent="ActionBar">
+        <item name="android:id">@id/locationbar</item>
+        <item name="android:layout_height">@dimen/locationbar_height</item>
+        <item name="android:padding">8dp</item>
     </style>
     
 </resources>
