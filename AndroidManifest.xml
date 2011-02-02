@@ -19,18 +19,34 @@
     android:versionCode="1"
     android:versionName="1.0"
     android:installLocation="auto">
-    <application android:icon="@drawable/ic_launcher" android:label="@string/app_name">
+    <application android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name">
+<!--         android:debuggable="true" -->  
+
+        <!-- Content Providers ============================================= -->      
+    
+        <provider android:name="com.taw.gotothere.provider.GoToThereSuggestionProvider"
+              android:authorities="com.taw.gotothere.provider.GoToThereSuggestionProvider" />
     
         <!-- Activities ==================================================== -->      
     
         <!-- Main activity -->
         <activity android:name=".GoToThereActivity"
                   android:label="@string/app_name"
-                  android:theme="@android:style/Theme.Light.NoTitleBar">
+                  android:theme="@android:style/Theme.Light.NoTitleBar" >
+                  
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            
+            <!-- Search -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEARCH" />
+            </intent-filter>
+            <meta-data android:name="android.app.searchable"
+                   android:resource="@xml/searchable"/>
+            
         </activity>
 
         <!-- Includes ====================================================== -->
@@ -42,9 +58,14 @@
     
     <uses-sdk android:minSdkVersion="4" />
 
-    <!--  Uses hardware ================================================ -->
+    <!-- Hardware settings ============================================= -->
 
     <uses-feature android:name="android.hardware.location.gps" />
+
+    <supports-screens android:largeScreens="true"
+		android:normalScreens="true"
+		android:smallScreens="true"
+		android:anyDensity="true" />
 
     <!-- Permissions =================================================== -->
 
