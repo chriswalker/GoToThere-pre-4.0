@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -40,21 +41,29 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import android.app.AlertDialog;
+import android.app.ProgressDialog;
+import android.app.SearchManager;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.location.Address;
+import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationManager;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.provider.SearchRecentSuggestions;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Toast;
 
@@ -65,7 +74,7 @@ import com.taw.gotothere.maps.NavigationOverlay;
 import com.taw.gotothere.model.Leg;
 import com.taw.gotothere.model.MapDirections;
 import com.taw.gotothere.model.Step;
-import com.taw.gotothere.views.BearingButtonsLayout;
+import com.taw.gotothere.provider.GoToThereSuggestionProvider;
 
 
 /**
@@ -86,13 +95,15 @@ public class GoToThereActivity extends MapActivity {
 	private NavigationOverlay navigationOverlay = null;
 	
 	// Views
-	
+
+	/** Directions button. */
+	private ImageView directionsImageView;
 	/** Location button. */
 	private ImageView locationImageView;
 	/** Bearing button. */
 	private ImageView markerImageView;
-	/** Bearing button layout. */
-	private BearingButtonsLayout bearingButtonLayout;
+	/** Location/search edit text. */
+	private EditText locationEditText;
 	
 	// Keys for saving/restoring instance state
 	
@@ -131,7 +142,30 @@ public class GoToThereActivity extends MapActivity {
 	private DirectionsTask directionsTask;
 	
 	/** Shared preference, indicating whether user has accepted the 'terms'. */
-	private String ACCEPTED_TOC = "ACCEPTED_TOC";
+	private static final String ACCEPTED_TOC = "ACCEPTED_TOC";
+	
+	/** Progress dialog, kicked off in the AsyncTask. */
+	private ProgressDialog progress;
+	
+	/**
+	 * Internal broadcast receiver for dealing with broadcasts from the
+	 * navigation overlay - we get notified if the user has tapped on the map,
+	 * in which case we clear out the auto complete text view.
+	 */
+	private class NavigationOverlayReceiver extends BroadcastReceiver {
+
+		/* (non-Javadoc)
+		 * @see android.content.BroadcastReceiver#onReceive(android.content.Context, android.content.Intent)
+		 */
+		@Override
+		public void onReceive(Context context, Intent i) {
+			directionsImageView.setEnabled(true);
+		}
+		
+	};
+	
+	/** Instance of the navigation overlay receiver. */
+	private NavigationOverlayReceiver receiver = null;
 	
 // Overrides
 	
@@ -147,11 +181,34 @@ public class GoToThereActivity extends MapActivity {
         setContentView(R.layout.main);
         
         startupChecks();
-        
         initMapView();
         
         locationImageView = (ImageView) findViewById(R.id.location_button);
         markerImageView = (ImageView) findViewById(R.id.marker_button);
+        directionsImageView = (ImageView) findViewById(R.id.directions_button);
+        directionsImageView.setEnabled(false);									// TEMP!
+        
+        locationEditText = (EditText) findViewById(R.id.location);
+        
+        progress = new ProgressDialog(this);
+        progress.setMessage(getResources().getString(R.string.directions_text));
+        
+        // remove?
+        registerReceiver();
+        // remove?
+        
+        // Check intent if called from quick search box
+        Intent i = getIntent();
+        if (i.getAction().equals(Intent.ACTION_SEARCH)) {
+            String query = i.getStringExtra(SearchManager.QUERY);
+            SearchRecentSuggestions suggestions = new SearchRecentSuggestions(this,
+                    GoToThereSuggestionProvider.AUTHORITY, GoToThereSuggestionProvider.MODE);
+            suggestions.saveRecentQuery(query, null);
+            locationEditText.setText(query);
+            
+            geocodeResult(query);
+        }
+
     }
     
 	/* (non-Javadoc)
@@ -167,6 +224,8 @@ public class GoToThereActivity extends MapActivity {
 		if (navigationOverlay.isCompassEnabled()) {
 			navigationOverlay.disableCompass();
 		}
+		
+		unregisterReceiver(receiver);
 	}
 
 	/* (non-Javadoc)
@@ -183,6 +242,8 @@ public class GoToThereActivity extends MapActivity {
 		if (locationImageView.isSelected() && !navigationOverlay.isCompassEnabled()) {
 			navigationOverlay.enableCompass();
 		}
+		
+		registerReceiver();
 	}
 
 	/*
@@ -218,7 +279,7 @@ public class GoToThereActivity extends MapActivity {
 		navigating = savedInstanceState.getBoolean(NAVIGATING_KEY);
 		if (navigating) {
 			navigationOverlay.setDirections((MapDirections) savedInstanceState.getSerializable(DIRECTIONS_KEY));
-			markerImageView.setSelected(!markerImageView.isSelected());
+			directionsImageView.setSelected(!directionsImageView.isSelected());
 		}
 		
 		if (savedInstanceState.getBoolean(DISPLAY_COMPASS_KEY)) {
@@ -283,8 +344,6 @@ public class GoToThereActivity extends MapActivity {
 		mi.inflate(R.menu.menu, menu);
 		return true;
 	}
-
-	
 	
 	/* (non-Javadoc)
 	 * @see android.app.Activity#onPrepareOptionsMenu(android.view.Menu)
@@ -326,6 +385,27 @@ public class GoToThereActivity extends MapActivity {
 	}
 	
 	// onClick handlers
+
+	/**
+	 * Handle clicking the directions actionbar button.
+	 * 
+	 * @param v View that received the click
+	 */
+	public void onDirectionsClick(View v) {
+		if (!navigating) {
+			if (placingMarker) {
+				stopMarkerPlacement();
+			} else {
+				if (isGPSOn()) {
+					startNavigation();
+				} else {
+					displayLocationSettingsDialog();
+				}
+			}
+		} else {
+			displayCancelNavigationDialog();
+		}
+	}
 	
 	/**
 	 * Handle clicking the marker actionbar button.
@@ -333,21 +413,10 @@ public class GoToThereActivity extends MapActivity {
 	 * @param v View that received the click
 	 */
 	public void onMarkerClick(View v) {
-		if (placingMarker) {
-			if (navigationOverlay.getSelectedLocation() == null) {
-				displayCancelMarkerDialog();
-			} else {
-				stopMarkerPlacement();
-				startNavigation();
-				markerImageView.setSelected(!markerImageView.isSelected());
-			}
+		if (!placingMarker) {
+			startMarkerPlacement();
 		} else {
-			if (!navigating) {
-				// Not navigating, so need to place a marker
-				startMarkerPlacement();
-			} else {
-				displayCancelNavigationDialog();
-			}
+			stopMarkerPlacement();
 		}
 	}
 
@@ -365,32 +434,19 @@ public class GoToThereActivity extends MapActivity {
 		
 		locationImageView.setSelected(!locationImageView.isSelected());
 	}
-	
+		
 	/**
-	 * Handle clicking the Done button.
+	 * Called when the user clicks in the edit text field; we pass through to
+	 * the global search mechanism.
 	 * 
 	 * @param v View that received the click
 	 */
-	public void onDoneButtonClick(View v) {
-		if (navigationOverlay.getSelectedLocation() == null) {
-			displayCancelMarkerDialog();
-		} else {
-			startNavigation();
-			stopMarkerPlacement(); 
-		}
-	}
-	
-	/**
-	 * Handle clicking the Cancel button.
-	 * 
-	 * @param v View that received the click
-	 */
-	public void onCancelButtonClick(View v) {
-		displayCancelMarkerDialog();
+	public void onSearchClicked(View v) {
+		onSearchRequested();
 	}
 	
 // Private methods
-    
+
 	/**
 	 * Check if this is the first time the app has run; if so, display the first-run
 	 * dialog, otherwise check if the GPS is on and offer to display the location
@@ -400,11 +456,6 @@ public class GoToThereActivity extends MapActivity {
 		if (!getPreferences(MODE_PRIVATE).getBoolean(ACCEPTED_TOC, false)) {
 			displayFirstRunDialog();
 		} 
-//		else {
-//	        if (!isGPSOn()) {
-//	        	displayLocationSettingsDialog();
-//	    	}
-//		}
 	}
 	
 	/** 
@@ -467,33 +518,9 @@ public class GoToThereActivity extends MapActivity {
 	    			finish();
 	    		}
 	       })
-		.show();
+	    .show();
 	}
 	
-	/**
-	 * Display a warning dialog asking the user if they are sure they want to
-	 * quit, since configuration is incomplete.
-	 */
-	private void displayCancelMarkerDialog() {
-		new AlertDialog.Builder(this)
-		.setTitle(getResources().getString(R.string.marker_dialog_title))
-		.setMessage(getResources().getString(R.string.marker_dialog_text))
-		.setPositiveButton(getResources().getString(R.string.yes_button_label), 
-			new DialogInterface.OnClickListener() {
-	           public void onClick(DialogInterface dialog, int id) {
-	        	   stopMarkerPlacement();
-	        	   markerImageView.setSelected(!markerImageView.isSelected());
-	           }
-	       })
-	    .setNegativeButton(getResources().getString(R.string.no_button_label), 
-	    	new DialogInterface.OnClickListener() {
-	    		public void onClick(DialogInterface dialog, int id) {
-	    			dialog.cancel();
-	    		}
-	       })
-		.show();
-	}
-
 	/**
 	 * Display a warning dialog asking the user if they are sure they want to
 	 * cancel navigation.
@@ -544,19 +571,14 @@ public class GoToThereActivity extends MapActivity {
 	 * Start marker placement.
 	 */
 	private void startMarkerPlacement() {
-        if (!isGPSOn()) {
-        	displayLocationSettingsDialog();
-    	} else {
+//        if (!isGPSOn()) {
+//        	displayLocationSettingsDialog();
+//    	} else {
 			placingMarker = true;
 			navigationOverlay.setPlacingMarker(placingMarker);
 			
-			Toast.makeText(this, R.string.place_marker_text, Toast.LENGTH_LONG).show();
-			
-			// Add buttonbar to layout.
-			addBearingButtonsView();
-			
 			markerImageView.setSelected(!markerImageView.isSelected());
-    	}
+//    	}
 	}
 	
 	/**
@@ -564,9 +586,10 @@ public class GoToThereActivity extends MapActivity {
 	 */
 	private void stopMarkerPlacement() {
 		placingMarker = false;
+		
 		navigationOverlay.setPlacingMarker(placingMarker);
 		
- 	   	removeAddBearingButtonView();
+		markerImageView.setSelected(!markerImageView.isSelected());
 	}	
 	
 	/**
@@ -576,6 +599,10 @@ public class GoToThereActivity extends MapActivity {
 	 */
 	private void startNavigation() {
 		navigating = true;
+		
+		directionsImageView.setSelected(!directionsImageView.isSelected());
+		markerImageView.setEnabled(false);
+		
 		navigationOverlay.setNavigating(navigating);
 		
 		if (navigationOverlay.getMyLocation() != null) {
@@ -601,7 +628,7 @@ public class GoToThereActivity extends MapActivity {
 	 * to their selected point. The thread will update the navigationOverlay
 	 * once it has directions.
 	 */
-	private void getDirections() {		
+	private void getDirections() {
 		if (directionsTask == null || directionsTask.getStatus().equals(AsyncTask.Status.FINISHED)) {
 			directionsTask = new DirectionsTask(getBaseContext(), 
 					navigationOverlay.getMyLocation(), 
@@ -617,32 +644,19 @@ public class GoToThereActivity extends MapActivity {
 	private void stopNavigation() {
 		navigating = false;
 		navigationOverlay.reset();
-				
-		map.invalidate();
+		map.invalidate();	
 		
-		markerImageView.setSelected(!markerImageView.isSelected());
-	}
-		
-	/**
-	 * Add the bearingbuttons to the map view.
-	 */
-	private void addBearingButtonsView() {
-		if (bearingButtonLayout == null) {
-			bearingButtonLayout = new BearingButtonsLayout(this);
+		//locationBarLayout.clearAddress();
+		if (locationEditText.getText().length() > 0) {
+			locationEditText.getText().clear();
 		}
-				
-		MapView.LayoutParams lp = new MapView.LayoutParams(MapView.LayoutParams.FILL_PARENT, 
-				MapView.LayoutParams.WRAP_CONTENT, 
-				0, 0, 
-				MapView.LayoutParams.TOP);
-		map.addView(bearingButtonLayout, lp);
-	}
-	
-	/**
-	 * Remove the bearing buttons from the map view.
-	 */
-	private void removeAddBearingButtonView() {
-		map.removeView(bearingButtonLayout);
+		
+		//map.invalidate();
+		
+		directionsImageView.setSelected(!directionsImageView.isSelected());
+		directionsImageView.setEnabled(false);
+		markerImageView.setEnabled(true);
+		
 	}
 	
 	/** 
@@ -697,6 +711,41 @@ public class GoToThereActivity extends MapActivity {
 		return (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) ? true : false;
     }
 	
+	/**
+	 * Register the broadcast receiver that listens for locations being set on the
+	 * map.
+	 */
+	private void registerReceiver() {
+		if (receiver == null) {
+			receiver = new NavigationOverlayReceiver();
+		}
+		
+		IntentFilter filter = new IntentFilter(NavigationOverlay.LOCATION_ON_MAP);
+		registerReceiver(receiver, filter);
+	}
+	
+	/**
+	 * Geocode the location the user typed into the search box, and centre the map
+	 * on it.
+	 */
+	private void geocodeResult(String address) {
+		Geocoder geo = new Geocoder(this, Locale.getDefault());
+		try {
+			List<Address> addresses = geo.getFromLocationName(address, 10);			// Hmmmm, 1?
+			if (addresses.size() > 0) {
+				GeoPoint pt = new GeoPoint((int) (addresses.get(0).getLatitude() * 1e6),
+						(int) (addresses.get(0).getLongitude() * 1e6));
+				navigationOverlay.setSelectedLocation(pt, this);
+				map.getController().animateTo(pt);
+			} else {
+				Toast.makeText(this, R.string.error_not_found_text, Toast.LENGTH_SHORT).show();
+				locationEditText.getText().clear();
+			}
+		} catch (IOException ioe) {
+			// errors
+		}
+	}
+	
 // Inner AsyncTask
 	
 	/**
@@ -713,7 +762,18 @@ public class GoToThereActivity extends MapActivity {
 		/** Origin geo point. */
 		private GeoPoint origin;
 		/** Destination geo point. */
-		private GeoPoint destination;
+		private GeoPoint destination = null;
+		
+		// Response status values from the Directions API
+		
+		/** OK. */
+		private static final String RESP_OK = "OK";
+		/** Address/location not found. */
+		private static final String RESP_NOT_FOUND = "NOT_FOUND";
+		/** No results found. */
+		private static final String RESP_ZERO_RESULTS = "ZERO_RESULTS";
+		/** Invalid request. */
+		private static final String RESP_INVALID_REQUEST = "INVALID_REQUEST";
 		
 		/** HttpClient. */
 		private HttpClient httpClient;
@@ -749,12 +809,16 @@ public class GoToThereActivity extends MapActivity {
 			buf.append(origin.getLongitudeE6() / 1e6);
 			httpParams.add(new BasicNameValuePair("origin", buf.toString()));
 			
-			buf = new StringBuffer();
-			buf.append(destination.getLatitudeE6() / 1e6);
-			buf.append(",");
-			buf.append(destination.getLongitudeE6() / 1e6);
-			httpParams.add(new BasicNameValuePair("destination", buf.toString()));
-			
+			String dest = null;
+			if (destination != null) {
+				buf = new StringBuffer();
+				buf.append(destination.getLatitudeE6() / 1e6);
+				buf.append(",");
+				buf.append(destination.getLongitudeE6() / 1e6);
+				dest = buf.toString();
+			}
+			httpParams.add(new BasicNameValuePair("destination", dest));
+				
 			try {
 				directions = execute(httpParams);
 			} catch (IOException ioe) {
@@ -771,7 +835,8 @@ public class GoToThereActivity extends MapActivity {
 		 */
 		@Override
 		protected void onPreExecute() {
-			findViewById(R.id.progress).setVisibility(View.VISIBLE);
+			//findViewById(R.id.progress).setVisibility(View.VISIBLE);
+			progress.show();
 			navigationOverlay.setStartLocation(origin);
 		}
 
@@ -781,18 +846,22 @@ public class GoToThereActivity extends MapActivity {
 		 */
 		@Override
 		protected void onPostExecute(MapDirections directions) {
-			if (directions != null && directions.getError() < 0) {
-				navigationOverlay.setDirections(directions);	        	
+			if (directions.getError() < 0) {
+				navigationOverlay.setDirections(directions);
 		        map.invalidate();
 			} else {
+				stopNavigation();
 				Toast.makeText(getBaseContext(), directions.getError(), Toast.LENGTH_SHORT).show();
 			}
 
-	        findViewById(R.id.progress).setVisibility(View.GONE);
+	        //findViewById(R.id.progress).setVisibility(View.GONE);
+			progress.cancel();
 		}
 		
-	// Private methods
 		
+		
+	// Private methods
+
 		/**
 		 * Sends the Http request to the designated server.
 		 */
@@ -805,7 +874,8 @@ public class GoToThereActivity extends MapActivity {
 				String encodedParams = URLEncodedUtils.format(params, "UTF-8");
 				
 				URI uri = URIUtils.createURI("http", "maps.googleapis.com", -1, 
-						"maps/api/directions/json", encodedParams, null);			
+						"maps/api/directions/json", encodedParams, null);
+				Log.d(TAG, "Generated URI = " + uri.toString());
 				get = new HttpGet(uri);				
 				HttpResponse rsp = httpClient.execute(get);
 				
@@ -814,19 +884,20 @@ public class GoToThereActivity extends MapActivity {
 					entity = rsp.getEntity();
 					if (entity != null) {
 						String json = EntityUtils.toString(entity);
+						Log.d(TAG, "Returned JSON =" + json);
 						parse(json, directions);
 					} 
 					break;
 				default:
-					directions.setError(R.string.general_error_text);
+					directions.setError(R.string.error_general_text);
 				}
 			} catch (JSONException jsone){
 				Log.e(TAG, "Problem parsing directions!", jsone);
-				directions.setError(R.string.json_error_text);
+				directions.setError(R.string.error_json_text);
 			} catch (Exception e) {
 				get.abort();
 				Log.e(TAG, "Problem getting directions!", e);
-				directions.setError(R.string.general_error_text);
+				directions.setError(R.string.error_general_text);
 			} finally {
 	            if (entity != null) {
 	                entity.consumeContent();
@@ -845,59 +916,76 @@ public class GoToThereActivity extends MapActivity {
 		private void parse(String jsonStr, MapDirections directions) throws JSONException {
 			
 			JSONObject json = new JSONObject(jsonStr);
-
-			// Only get one route back
-			JSONObject jsonRoute = json.getJSONArray("routes").getJSONObject(0);
 			
-			JSONArray jsonWarnings = jsonRoute.getJSONArray("warnings");
-			List<String> warnings = new ArrayList<String>();
-			for (int i = 0, j = jsonWarnings.length(); i < j; i ++) {
-				warnings.add(jsonWarnings.getString(i));
-			}
-			directions.setWarning(warnings);
-			
-			directions.setSummary(jsonRoute.getString("summary"));
-			
-			// Loop through Legs (should only be one)
-			JSONArray jsonLegs = jsonRoute.getJSONArray("legs");
-			Leg leg = null;
-			for (int i = 0, j = jsonLegs.length(); i < j; i ++) {
-				JSONObject jsonLeg = jsonLegs.getJSONObject(i);
-				leg = new Leg();
+			String status = json.getString("status");
+			if (status.equals(RESP_NOT_FOUND)) {
+				directions.setError(R.string.error_not_found_text);
+			} else if (status.equals(RESP_ZERO_RESULTS)) {
+				directions.setError(R.string.error_zero_results_text);
+			} else if (status.equals(RESP_INVALID_REQUEST)) {
+				directions.setError(R.string.error_general_text);
+			} else if (status.equals(RESP_OK)) {
+				// Only get one route back
+				JSONObject jsonRoute = json.getJSONArray("routes").getJSONObject(0);
 				
-				Step step = null;
-				JSONArray jsonSteps = jsonLeg.getJSONArray("steps");
-				for (int k = 0, l = jsonSteps.length(); k < l; k ++) {
-					JSONObject jsonStep = jsonSteps.getJSONObject(k);
-					step = new Step();
-					
-					JSONObject location = jsonStep.getJSONObject("start_location");
-					step.setStartLocation((int) (location.getDouble("lat") * 1e6), 
-							(int) (location.getDouble("lng") * 1e6));
-					
-					location = jsonStep.getJSONObject("end_location");
-					step.setEndLocation((int) (location.getDouble("lat") * 1e6), 
-							(int) (location.getDouble("lng") * 1e6));
-					
-					step.setTravelMode(jsonStep.getString("travel_mode"));
-					
-					step.setDistance(jsonStep.getJSONObject("distance").getInt("value"));
-					step.setDistanceText(jsonStep.getJSONObject("distance").getString("text"));
-					
-					step.setDuration(jsonStep.getJSONObject("duration").getInt("value"));
-					step.setDurationText(jsonStep.getJSONObject("duration").getString("text"));
-
-					step.setHtmlInstructions(jsonStep.getString("html_instructions"));
-					
-					step.setPolyLine(jsonStep.getJSONObject("polyline").getString("points"));
-					
-					leg.addStep(step);
+				JSONArray jsonWarnings = jsonRoute.getJSONArray("warnings");
+				List<String> warnings = new ArrayList<String>();
+				for (int i = 0, j = jsonWarnings.length(); i < j; i ++) {
+					warnings.add(jsonWarnings.getString(i));
 				}
+				directions.setWarning(warnings);
 				
-				directions.setStartAddress(jsonLeg.getString("start_address"));
-				directions.setEndAddress(jsonLeg.getString("end_address"));
+				directions.setSummary(jsonRoute.getString("summary"));
 				
-				directions.addLeg(leg);
+				// Loop through Legs (should only be one)
+				JSONArray jsonLegs = jsonRoute.getJSONArray("legs");
+				Leg leg = null;
+				JSONObject location = null; 										// For retrieving locations
+				for (int i = 0, j = jsonLegs.length(); i < j; i ++) {
+					JSONObject jsonLeg = jsonLegs.getJSONObject(i);
+					leg = new Leg();
+					
+					Step step = null;
+					JSONArray jsonSteps = jsonLeg.getJSONArray("steps");
+					for (int k = 0, l = jsonSteps.length(); k < l; k ++) {
+						JSONObject jsonStep = jsonSteps.getJSONObject(k);
+						step = new Step();
+						
+						location = jsonStep.getJSONObject("start_location");
+						step.setStartLocation((int) (location.getDouble("lat") * 1e6), 
+								(int) (location.getDouble("lng") * 1e6));
+						
+						location = jsonStep.getJSONObject("end_location");
+						step.setEndLocation((int) (location.getDouble("lat") * 1e6), 
+								(int) (location.getDouble("lng") * 1e6));
+						
+						step.setTravelMode(jsonStep.getString("travel_mode"));
+						
+						step.setDistance(jsonStep.getJSONObject("distance").getInt("value"));
+						step.setDistanceText(jsonStep.getJSONObject("distance").getString("text"));
+						
+						step.setDuration(jsonStep.getJSONObject("duration").getInt("value"));
+						step.setDurationText(jsonStep.getJSONObject("duration").getString("text"));
+	
+						step.setHtmlInstructions(jsonStep.getString("html_instructions"));
+						
+						step.setPolyLine(jsonStep.getJSONObject("polyline").getString("points"));
+						
+						leg.addStep(step);
+					}
+					
+					directions.setStartAddress(jsonLeg.getString("start_address"));
+					directions.setEndAddress(jsonLeg.getString("end_address"));
+					
+					location = jsonLeg.getJSONObject("start_location");
+					directions.setStartLocation((int) (location.getDouble("lat") * 1e6), 
+								(int) (location.getDouble("lng") * 1e6));
+					location = jsonLeg.getJSONObject("end_location");
+					directions.setEndLocation((int) (location.getDouble("lat") * 1e6), 
+								(int) (location.getDouble("lng") * 1e6));
+					
+					directions.addLeg(leg);
+				}
 			}
 		}
 	}
