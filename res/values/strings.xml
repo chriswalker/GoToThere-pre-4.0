@@ -25,9 +25,12 @@
     <string name="no_button_label">No</string>
     
     <string name="waiting_text">Waiting for GPS fix...</string>
+    <string name="directions_text">Getting directions...</string>
 
-    <string name="json_error_text">Could not process the response from the server!</string>
-    <string name="general_error_text">Could not obtain directions from the server - please try again shortly.</string>
+    <string name="error_json_text">Could not process the response from the server!</string>
+    <string name="error_general_text">Could not obtain directions from the server - please try again shortly.</string>
+    <string name="error_not_found_text">Could not find destination address.</string>
+    <string name="error_zero_results_text">Could not find route between start and end points.</string>
 
     <!-- Directions API URL -->
     <string name="directions_url">http://maps.googleapis.com/maps/api/directions/json</string>
@@ -47,18 +50,16 @@
     <!-- GPS activation dialog strings -->
     <string name="gps_dialog_title">GPS is disabled</string>
     <string name="gps_dialog_text">Do you want to go to the locations settings to enable GPS?</string>  
-    
-    <!--  Bearing button strings -->
-    <string name="place_marker_text">Tap on the map where you want to navigate to, or press the Navigate button again to cancel</string>
-    <string name="cancel_button_label">Cancel</string>
-    <string name="done_button_label">Done</string>
+ 
+    <!-- Actionbar edit text hint -->
+    <string name="address_hint">Enter address</string>
     
     <!-- First-run dialog string -->
     <string name="first_run_dialog_title">Go To There</string>
     <string name="first_run_text">Go To There uses directions provided by Google\'s Directions service.\n\nWalking directions provided by this service are in beta - note that routes described may be missing sidewalks/pavements or other pedestrian paths.\n\nPlease use your judgement when following directions provided by this application!\n</string>
     <string name="accept_button_label">Accept</string>
     <string name="dont_accept_button_label">Don\'t Accept</string>
-    
+        
     <!-- =================================================================== -->
     <!-- Array Strings                                                       -->
     <!-- =================================================================== -->
