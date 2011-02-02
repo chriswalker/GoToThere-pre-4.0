@@ -175,7 +175,6 @@ public class NavigationOverlay extends MyLocationOverlay {
 
 		if (placingMarker) {
 			setSelectedLocation(p, map.getContext());
-			//selectedLocation = p;
 			map.invalidate();
 			return true;
 		} else if (navigating && directions != null) {
