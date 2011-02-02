@@ -393,12 +393,12 @@ public class GoToThereActivity extends MapActivity {
 		if (!navigating) {
 			if (placingMarker) {
 				stopMarkerPlacement();
+			} 
+
+			if (isGPSOn()) {
+				startNavigation();
 			} else {
-				if (isGPSOn()) {
-					startNavigation();
-				} else {
-					displayLocationSettingsDialog();
-				}
+				displayLocationSettingsDialog();
 			}
 		} else {
 			displayCancelNavigationDialog();
