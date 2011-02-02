@@ -20,14 +20,14 @@ import java.util.List;
 
 import android.app.Service;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Canvas;
 import android.graphics.DashPathEffect;
 import android.graphics.Paint;
+import android.graphics.Paint.Style;
 import android.graphics.Point;
 import android.graphics.Rect;
-import android.graphics.Paint.Style;
 import android.util.DisplayMetrics;
-import android.util.Log;
 import android.view.WindowManager;
 import android.widget.Toast;
 
@@ -41,8 +41,10 @@ import com.taw.gotothere.model.Step;
 
 
 /**
+ * Provide own subclass of MyLocationOverlay, which also handles placing
+ * destination markers on the map.
+ * 
  * @author Chris
- *
  */
 public class NavigationOverlay extends MyLocationOverlay {
 
@@ -58,6 +60,10 @@ public class NavigationOverlay extends MyLocationOverlay {
 	private GeoPoint selectedLocation;
 	/** Point user is starting from, updated when they decide to request directions. */
 	private GeoPoint startLocation;
+	
+	/** Intent action string. Used when notifying activity we have a location on the map. */
+	public static final String LOCATION_ON_MAP = 
+		"com.taw.gotothere.intent.action.LOCATION_ON_MAP";
 	
 	/** Start point on the canvas. */
 	private Point startPoint;
@@ -144,6 +150,7 @@ public class NavigationOverlay extends MyLocationOverlay {
 			canvas.drawCircle(startPoint.x, startPoint.y, radius + 1, outer);
 		}
 		
+		// Mark the end point
 		if (selectedLocation != null) {
 			endPoint = new Point();
 			proj.toPixels(selectedLocation, endPoint);
@@ -165,29 +172,22 @@ public class NavigationOverlay extends MyLocationOverlay {
 	 */
 	@Override
 	public boolean onTap(GeoPoint p, MapView map) {
+
 		if (placingMarker) {
-			selectedLocation = p;
+			setSelectedLocation(p, map.getContext());
+			//selectedLocation = p;
+			map.invalidate();
 			return true;
 		} else if (navigating && directions != null) {
-			int offset = radius + POINT_OFFSET;
+			Projection proj = map.getProjection();
 
 			// Check if start/end points clicked in, and display addresses if so
-			Point pt = new Point();
-			Point tapPt = new Point();
-			Projection proj = map.getProjection();
-			
-			proj.toPixels(p, tapPt);
-			
-			proj.toPixels(selectedLocation, pt);
-			Rect rect = new Rect(pt.x - offset, pt.y - offset, pt.x + offset, pt.y + offset);
-			if (rect.contains(tapPt.x, tapPt.y)) {
+			if (isTapWithin(proj, p, selectedLocation)) {
 				Toast.makeText(map.getContext(), directions.getEndAddress(), Toast.LENGTH_SHORT).show();
 				return true;
 			}
 			
-			proj.toPixels(startLocation, pt);
-			rect = new Rect(pt.x - offset, pt.y - offset, pt.x + offset, pt.y + offset);
-			if (rect.contains(tapPt.x, tapPt.y)) {
+			if (isTapWithin(proj, p, startLocation)) {
 				Toast.makeText(map.getContext(), directions.getStartAddress(), Toast.LENGTH_SHORT).show();
 				return true;
 			}
@@ -258,6 +258,23 @@ public class NavigationOverlay extends MyLocationOverlay {
 			break;		
 		}
 	}
+
+// Private methods
+	
+	private boolean isTapWithin(Projection proj, GeoPoint tap, GeoPoint location) {
+		int offset = radius + POINT_OFFSET;
+
+		Point pt = new Point();
+		Point tapPt = new Point();
+
+		// Check if start/end points clicked in, and display addresses if so
+		proj.toPixels(tap, tapPt);
+		
+		proj.toPixels(location, pt);
+		Rect rect = new Rect(pt.x - offset, pt.y - offset, pt.x + offset, pt.y + offset);
+		
+		return (rect.contains(tapPt.x, tapPt.y)) ? true : false;
+	}
 	
 // Accessors
 	
@@ -289,6 +306,18 @@ public class NavigationOverlay extends MyLocationOverlay {
 		this.selectedLocation = selectedLocation;
 	}
 
+	/**
+	 * Overloaded version that also sends a broadcast, indicating it has been set.
+	 * @param selectedLocation the selectedLocation to set
+	 */
+	public void setSelectedLocation(GeoPoint selectedLocation, Context context) {
+		this.selectedLocation = selectedLocation;
+		
+		// Fire event to notify activity we have a location on the map
+		Intent i = new Intent(LOCATION_ON_MAP);
+		context.sendBroadcast(i);
+	}
+	
 	/**
 	 * @return the startLocation
 	 */
