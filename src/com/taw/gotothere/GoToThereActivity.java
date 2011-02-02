@@ -193,9 +193,7 @@ public class GoToThereActivity extends MapActivity {
         progress = new ProgressDialog(this);
         progress.setMessage(getResources().getString(R.string.directions_text));
         
-        // remove?
         registerReceiver();
-        // remove?
         
         // Check intent if called from quick search box
         Intent i = getIntent();
@@ -571,14 +569,10 @@ public class GoToThereActivity extends MapActivity {
 	 * Start marker placement.
 	 */
 	private void startMarkerPlacement() {
-//        if (!isGPSOn()) {
-//        	displayLocationSettingsDialog();
-//    	} else {
-			placingMarker = true;
-			navigationOverlay.setPlacingMarker(placingMarker);
-			
-			markerImageView.setSelected(!markerImageView.isSelected());
-//    	}
+		placingMarker = true;
+		navigationOverlay.setPlacingMarker(placingMarker);
+		
+		markerImageView.setSelected(!markerImageView.isSelected());
 	}
 	
 	/**
@@ -651,8 +645,6 @@ public class GoToThereActivity extends MapActivity {
 			locationEditText.getText().clear();
 		}
 		
-		//map.invalidate();
-		
 		directionsImageView.setSelected(!directionsImageView.isSelected());
 		directionsImageView.setEnabled(false);
 		markerImageView.setEnabled(true);
@@ -665,7 +657,6 @@ public class GoToThereActivity extends MapActivity {
 	 * specifying the menu via XML)
 	 */
 	private void displayMapTypeOptions() {
-		
 		int checked = -1;
 		if (!map.isSatellite()) {
 			checked = MAP_TYPE_MAP;
@@ -835,7 +826,6 @@ public class GoToThereActivity extends MapActivity {
 		 */
 		@Override
 		protected void onPreExecute() {
-			//findViewById(R.id.progress).setVisibility(View.VISIBLE);
 			progress.show();
 			navigationOverlay.setStartLocation(origin);
 		}
@@ -854,7 +844,6 @@ public class GoToThereActivity extends MapActivity {
 				Toast.makeText(getBaseContext(), directions.getError(), Toast.LENGTH_SHORT).show();
 			}
 
-	        //findViewById(R.id.progress).setVisibility(View.GONE);
 			progress.cancel();
 		}
 		
@@ -875,7 +864,6 @@ public class GoToThereActivity extends MapActivity {
 				
 				URI uri = URIUtils.createURI("http", "maps.googleapis.com", -1, 
 						"maps/api/directions/json", encodedParams, null);
-				Log.d(TAG, "Generated URI = " + uri.toString());
 				get = new HttpGet(uri);				
 				HttpResponse rsp = httpClient.execute(get);
 				
