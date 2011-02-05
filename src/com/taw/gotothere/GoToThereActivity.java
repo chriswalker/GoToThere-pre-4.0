@@ -63,8 +63,8 @@ import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.maps.GeoPoint;
@@ -103,7 +103,7 @@ public class GoToThereActivity extends MapActivity {
 	/** Bearing button. */
 	private ImageView markerImageView;
 	/** Location/search edit text. */
-	private EditText locationEditText;
+	private TextView searchTextView;
 	
 	// Keys for saving/restoring instance state
 	
@@ -188,7 +188,7 @@ public class GoToThereActivity extends MapActivity {
         directionsImageView = (ImageView) findViewById(R.id.directions_button);
         directionsImageView.setEnabled(false);									// TEMP!
         
-        locationEditText = (EditText) findViewById(R.id.location);
+        searchTextView = (TextView) findViewById(R.id.location);
         
         progress = new ProgressDialog(this);
         progress.setMessage(getResources().getString(R.string.directions_text));
@@ -202,7 +202,7 @@ public class GoToThereActivity extends MapActivity {
             SearchRecentSuggestions suggestions = new SearchRecentSuggestions(this,
                     GoToThereSuggestionProvider.AUTHORITY, GoToThereSuggestionProvider.MODE);
             suggestions.saveRecentQuery(query, null);
-            locationEditText.setText(query);
+            searchTextView.setText(query);
             
             geocodeResult(query);
         }
@@ -640,9 +640,8 @@ public class GoToThereActivity extends MapActivity {
 		navigationOverlay.reset();
 		map.invalidate();	
 		
-		//locationBarLayout.clearAddress();
-		if (locationEditText.getText().length() > 0) {
-			locationEditText.getText().clear();
+		if (searchTextView.getText().length() > 0) {
+			searchTextView.setText(null);
 		}
 		
 		directionsImageView.setSelected(!directionsImageView.isSelected());
@@ -730,7 +729,7 @@ public class GoToThereActivity extends MapActivity {
 				map.getController().animateTo(pt);
 			} else {
 				Toast.makeText(this, R.string.error_not_found_text, Toast.LENGTH_SHORT).show();
-				locationEditText.getText().clear();
+				searchTextView.setText(null);
 			}
 		} catch (IOException ioe) {
 			// errors
