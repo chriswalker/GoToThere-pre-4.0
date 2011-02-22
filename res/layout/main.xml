@@ -81,22 +81,12 @@
 	</LinearLayout>
     -->
     <RelativeLayout style="@style/ActionBar">
-            
-        <ImageButton android:id="@+id/location_button"
-            style="@style/ActionBarAction"
-            android:src="@drawable/ic_location_button"
-            android:onClick="onCompassClick"
-            android:layout_alignParentRight="true" />
-            
-        <ImageView android:id="@+id/sep1"
-            style="@style/ActionBarSeparator"
-            android:layout_toLeftOf="@id/location_button" />
-        
+
         <ImageButton android:id="@+id/marker_button"
             style="@style/ActionBarAction"
             android:src="@drawable/marker_button_states"
             android:onClick="onMarkerClick"
-            android:layout_toLeftOf="@id/sep1" />
+            android:layout_alignParentRight="true" />
             
         <ImageView android:id="@+id/sep2" 
             style="@style/ActionBarSeparator"
