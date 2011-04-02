@@ -21,65 +21,6 @@
     android:id="@+id/main">
     
 	<!-- Actionbar -->
-	<!--
-	<LinearLayout style="@style/ActionBar">	    
-		
-		< !- -
-        <EditText android:id="@+id/location"
-            android:textColor="@android:color/black"
-            android:inputType="none"
-            android:ellipsize="end"
-            android:hint="@string/address_hint"
-            android:imeOptions="actionGo"
-            android:onClick="onSearchClicked"
-            android:layout_width="wrap_content"
-            android:layout_height="42dp" />
-        - - >
-        <TextView android:id="@+id/location"
-			android:inputType="text"
-			android:singleLine="true"
-			android:ellipsize="end"
-			android:hint="@string/address_hint"
-			android:textColor="@android:color/primary_text_light"
-			android:layout_width="match_parent"
-			android:layout_height="41dp"
-
-            android:focusable="false"
-			android:focusableInTouchMode="false"
-			android:onClick="onSearchClicked"            
-			android:layout_marginLeft="5dp"
-			android:layout_marginRight="5dp"
-			android:layout_centerVertical="true"
-			style="@android:style/Widget.EditText" /> 
-
-		
-	    <View style="@style/ActionBarSpring" />
-	
-	    <ProgressBar style="@style/ActionBarProgressIndicator"
-	        android:id="@+id/progress"
-	        android:visibility="gone" />
-        <ImageView style="@style/ActionBarSeparator" />
-
-        <ImageButton android:id="@+id/directions_button"
-            style="@style/ActionBarAction"
-            android:src="@drawable/directions_button_states"
-            android:onClick="onDirectionsClick" />
-
-	    <ImageView style="@style/ActionBarSeparator" />
-	    
-	    <ImageButton android:id="@+id/marker_button"
-	        style="@style/ActionBarAction"
-	        android:src="@drawable/marker_button_states"
-	        android:onClick="onMarkerClick" />
-	
-	    <ImageView style="@style/ActionBarSeparator" />
-	    
-	    <ImageButton android:id="@+id/location_button"
-	        style="@style/ActionBarAction"
-	        android:src="@drawable/ic_location_button"
-	        android:onClick="onCompassClick" />
-	</LinearLayout>
-    -->
     <RelativeLayout style="@style/ActionBar">
 
         <ImageButton android:id="@+id/marker_button"
@@ -108,7 +49,7 @@
             android:ellipsize="end"
             android:hint="@string/address_hint"
             android:textColor="@android:color/primary_text_light"
-            android:layout_width="match_parent"
+            android:layout_width="fill_parent"
             android:layout_height="41dp"
             android:focusable="false"
             android:focusableInTouchMode="false"
@@ -127,7 +68,7 @@
 		android:layout_height="wrap_content"
 		android:clickable="true"
 		android:layout_below="@id/actionbar"
-        android:apiKey="0aQi2QM6UggjRWz3pbG5d5lCVRTWossQTlqrxog" />
+        android:apiKey="0aQi2QM6UgggpKbd2eVMhXP-ucJbOoh0TnprzUg" />
  		<!-- actual - android:apiKey="0aQi2QM6UgggpKbd2eVMhXP-ucJbOoh0TnprzUg" /> -->
 	    <!-- debug - android:apiKey="0aQi2QM6UggjRWz3pbG5d5lCVRTWossQTlqrxog" /> -->
 	
