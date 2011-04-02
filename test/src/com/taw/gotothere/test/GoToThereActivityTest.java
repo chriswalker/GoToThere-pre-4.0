@@ -15,17 +15,20 @@
  */
 package com.taw.gotothere.test;
 
+import android.app.Instrumentation;
 import android.test.ActivityInstrumentationTestCase2;
-import android.view.MotionEvent;
+import android.test.UiThreadTest;
 import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.google.android.maps.GeoPoint;
 import com.google.android.maps.MapView;
 import com.taw.gotothere.GoToThereActivity;
+import com.taw.gotothere.maps.NavigationOverlay;
 
 /**
- * Tests the main GoToThereActivity.
+ * Tests the main GoToThereActivity. We're mainly interested in UI related behaviour
+ * here, so tests related to UI and state are emphasised over app logic.
  * 
  * @author Chris
  */
@@ -44,7 +47,8 @@ public class GoToThereActivityTest extends ActivityInstrumentationTestCase2<GoTo
 	private TextView searchTextView;
 	/** MapView within activity. */
 	private MapView map;
-	
+	/** Overlay used in map. */
+	private NavigationOverlay overlay;
 	
 	// GeoPoints representing various locations
 	
@@ -52,6 +56,9 @@ public class GoToThereActivityTest extends ActivityInstrumentationTestCase2<GoTo
 	private GeoPoint myLocation;
 	/** Where user taps. */
 	private GeoPoint destination;
+	
+	/** Activity instrumentation. */
+	private Instrumentation instr;
 	
 	public GoToThereActivityTest() {
 		super("com.taw.gotothere", GoToThereActivity.class);
@@ -73,14 +80,19 @@ public class GoToThereActivityTest extends ActivityInstrumentationTestCase2<GoTo
 		
 		map = (MapView) activity.findViewById(com.taw.gotothere.R.id.map);
 		
-		myLocation = new GeoPoint((int) (-0.551796 * 1e6), (int) (51.306412 * 1e6));
+		// NavigationOverlay only one in overlays list
+		overlay = (NavigationOverlay) map.getOverlays().get(0);
 		
+		myLocation = new GeoPoint((int) (-0.551796 * 1e6), (int) (51.306412 * 1e6));
+		destination = new GeoPoint((int) (-0.556951 * 1e6), (int) (51.3185 * 1e6));
+		
+		instr = this.getInstrumentation();
 	}
 	
 	/**
 	 * Test initial activity state.
 	 */
-	public void testPreConditions() {
+	public void testStartupConditions() {
 		assertFalse(directionsImageView.isSelected());
 		assertFalse(directionsImageView.isEnabled());							// Directions btn initially disabled
 		assertFalse(markerImageView.isSelected());
@@ -93,7 +105,8 @@ public class GoToThereActivityTest extends ActivityInstrumentationTestCase2<GoTo
 	/**
 	 * Test adding a marker.
 	 */
-//	public void testAddAmarker() {
+	@UiThreadTest
+	public void testAddAmarker() {
 //		activity.runOnUiThread(new Runnable() {
 //			public void run() {
 //				markerImageView.requestFocus();
@@ -101,36 +114,67 @@ public class GoToThereActivityTest extends ActivityInstrumentationTestCase2<GoTo
 //				
 //				map.requestFocus();
 //				map.dispatchTouchEvent(new MotionEvent());
+				
+				// Click the marker actionbar button
+				activity.onMarkerClick(markerImageView);
+				assertTrue(markerImageView.isSelected());
+				assertNull(overlay.getSelectedLocation());
+				
+				// Now tap on the map somewhere
+				overlay.onTap(destination, map);
+				assertNotNull(overlay.getSelectedLocation());
+				assertTrue(directionsImageView.isEnabled());
 //			}
 //		});
-//	}
+	}
 	
 	/**
 	 * Starting via ACTION_SEARCH intent from the quick search box.
 	 */
-
+	public void testStartBySearchIntent() {
+		
+	}
+	
 	/**
 	 * Test UI state when switching between a marker set by a location query
 	 * and one set by tapping on the map.
 	 */
 
 	
-	// Orientation change tests
+	
+	// State saving on activity pause/finish
 	
 	/**
-	 * Test MapView UI state maintained on device reorientation.
+	 * Test MapView UI state maintained on activity restarts.
 	 */
-	public void testMapUI() {
+	@UiThreadTest
+	public void testMapUIStateSaved() {
 		int zoom = map.getZoomLevel();
 		GeoPoint centre = map.getMapCenter();
 
-		// Change orientation
-		
+		// Pause and resume the activity
+		instr.callActivityOnPause(activity);
+		instr.callActivityOnResume(activity);
 		
 		assertEquals(zoom, map.getZoomLevel());
 		assertEquals(centre.getLatitudeE6(), map.getMapCenter().getLatitudeE6());
 		assertEquals(centre.getLongitudeE6(), map.getMapCenter().getLongitudeE6());
+		
+		// Stop activity completely and start again
+		activity.finish();
+		activity = getActivity();
+		
+		assertEquals(zoom, map.getZoomLevel());
+		assertEquals(centre.getLatitudeE6(), map.getMapCenter().getLatitudeE6());
+		assertEquals(centre.getLongitudeE6(), map.getMapCenter().getLongitudeE6());
+		
 	}
 	
-	
+	/**
+	 * Test actionbar state maintained on activity restarts
+	 */
+	@UiThreadTest
+	public void testActionbarUIStateSaved() {
+		
+	}
 }
