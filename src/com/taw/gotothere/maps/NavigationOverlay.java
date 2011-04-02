@@ -118,10 +118,6 @@ public class NavigationOverlay extends MyLocationOverlay {
 	public synchronized boolean draw(Canvas canvas, MapView mapView,
 			boolean shadow, long when) {
 		Projection proj = mapView.getProjection();
-
-		if (isCompassEnabled()) {
-			drawCompass(canvas, getOrientation());
-		}
 		
 		if (directions != null) {
 			List<Step> steps = directions.getLegs().get(0).getSteps();
@@ -163,6 +159,10 @@ public class NavigationOverlay extends MyLocationOverlay {
 			drawMyLocation(canvas, mapView, getLastFix(), getMyLocation(), when);
 		}
 		
+		if (isCompassEnabled()) {
+			drawCompass(canvas, getOrientation());
+		}
+		
 		// As per default implementation
 		return false;
 	}
@@ -176,6 +176,11 @@ public class NavigationOverlay extends MyLocationOverlay {
 		if (placingMarker) {
 			setSelectedLocation(p, map.getContext());
 			map.invalidate();
+			
+			// Fire event to notify activity we have a location on the map
+			Intent i = new Intent(LOCATION_ON_MAP);
+			map.getContext().sendBroadcast(i);
+			
 			return true;
 		} else if (navigating && directions != null) {
 			Projection proj = map.getProjection();
@@ -196,9 +201,19 @@ public class NavigationOverlay extends MyLocationOverlay {
 	}
 	
 	/**
+	 * Set up overlay for navigating.
+	 */
+	public void startNavigating() {
+		enableCompass();
+		
+		navigating = true;
+	}
+	 
+	/**
 	 * Resets elements of the overlay after we've finished navigating.
 	 */
-	public void reset() {
+	public void stopNavigating() {
+		disableCompass();
 		setSelectedLocation(null);
 		setDirections(null);
 		
@@ -311,10 +326,6 @@ public class NavigationOverlay extends MyLocationOverlay {
 	 */
 	public void setSelectedLocation(GeoPoint selectedLocation, Context context) {
 		this.selectedLocation = selectedLocation;
-		
-		// Fire event to notify activity we have a location on the map
-		Intent i = new Intent(LOCATION_ON_MAP);
-		context.sendBroadcast(i);
 	}
 	
 	/**
