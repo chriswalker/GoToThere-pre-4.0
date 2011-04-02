@@ -40,6 +40,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.app.SearchManager;
@@ -52,7 +53,6 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.location.Address;
 import android.location.Geocoder;
-import android.location.Location;
 import android.location.LocationManager;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -98,8 +98,6 @@ public class GoToThereActivity extends MapActivity {
 
 	/** Directions button. */
 	private ImageView directionsImageView;
-	/** Location button. */
-	private ImageView locationImageView;
 	/** Bearing button. */
 	private ImageView markerImageView;
 	/** Location/search edit text. */
@@ -108,22 +106,22 @@ public class GoToThereActivity extends MapActivity {
 	// Keys for saving/restoring instance state
 	
 	/** End point Latitude  key. */
-	public static final String END_LAT_KEY = "end_lat";
+	private static final String END_LAT_KEY = "endLat";
 	/** End point Longitude preference key. */
-	public static final String END_LONG_KEY = "end_lng";
+	private static final String END_LONG_KEY = "endLng";
 	/** Start point Latitude  key. */
-	public static final String START_LAT_KEY = "start_lat";
+	private static final String START_LAT_KEY = "startLat";
 	/** Start point Longitude preference key. */
-	public static final String START_LONG_KEY = "start_lng";
+	private static final String START_LONG_KEY = "startLng";
 	/** Whether we're navigating. */
-	public static final String NAVIGATING_KEY = "navigating";
+	private static final String NAVIGATING_KEY = "navigating";
 	/** Whether we're placing a marker. */
-	public static final String PLACING_MARKER_KEY = "placingMarker";
-	/** Whether the compass inset is displayed. */
-	public static final String DISPLAY_COMPASS_KEY = "displayCompass";
+	private static final String PLACING_MARKER_KEY = "placingMarker";
 	/** Directions, retrieved from the API. */
-	public static final String DIRECTIONS_KEY = "directions";
-		
+	private static final String DIRECTIONS_KEY = "directions";
+	/** Last query received via ACTION_SEARCH intent. */
+	private static final String PREVIOUS_QUERY = "previousQuery";
+	
 	// Map type array indices
 	
 	/** Map type: map. */
@@ -137,7 +135,7 @@ public class GoToThereActivity extends MapActivity {
 	private boolean placingMarker = false;
 	/** Whether we're navigating to a point. */
 	private boolean navigating = false;
-
+	
 	/** AsyncTask to retrieve directions. */
 	private DirectionsTask directionsTask;
 	
@@ -160,6 +158,12 @@ public class GoToThereActivity extends MapActivity {
 		@Override
 		public void onReceive(Context context, Intent i) {
 			directionsImageView.setEnabled(true);
+			searchTextView.setText(null);
+			
+			// Remove any saved query, as it's now superceded by the marker
+			// placed by tapping the map
+			SharedPreferences.Editor edit = getPreferences(Activity.MODE_PRIVATE).edit();
+			edit.remove(PREVIOUS_QUERY);
 		}
 		
 	};
@@ -177,36 +181,27 @@ public class GoToThereActivity extends MapActivity {
 	 */
     @Override
     public void onCreate(Bundle savedInstanceState) {
+    	Log.d(TAG, "onCreate()");
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
         
         startupChecks();
         initMapView();
-        
-        locationImageView = (ImageView) findViewById(R.id.location_button);
+
         markerImageView = (ImageView) findViewById(R.id.marker_button);
         directionsImageView = (ImageView) findViewById(R.id.directions_button);
-        directionsImageView.setEnabled(false);									// TEMP!
-        
+        // Directions button initially disabled; if we're restoring state later
+        // on, this may get overridden
+		directionsImageView.setEnabled(false);
+		
         searchTextView = (TextView) findViewById(R.id.location);
         
         progress = new ProgressDialog(this);
         progress.setMessage(getResources().getString(R.string.directions_text));
         
         registerReceiver();
-        
-        // Check intent if called from quick search box
-        Intent i = getIntent();
-        if (i.getAction().equals(Intent.ACTION_SEARCH)) {
-            String query = i.getStringExtra(SearchManager.QUERY);
-            SearchRecentSuggestions suggestions = new SearchRecentSuggestions(this,
-                    GoToThereSuggestionProvider.AUTHORITY, GoToThereSuggestionProvider.MODE);
-            suggestions.saveRecentQuery(query, null);
-            searchTextView.setText(query);
-            
-            geocodeResult(query);
-        }
 
+        handleIntent(getIntent(), savedInstanceState);
     }
     
 	/* (non-Javadoc)
@@ -232,14 +227,8 @@ public class GoToThereActivity extends MapActivity {
 	@Override
 	protected void onResume() {
 		super.onResume();
-//		Log.d(TAG, "onResume()");
+		Log.d(TAG, "onResume()");
 		navigationOverlay.enableMyLocation();
-		
-		// If coming back in from the home screen, onRestoreInstanceState() not
-		// invoked, so compass won't be switched on if required
-		if (locationImageView.isSelected() && !navigationOverlay.isCompassEnabled()) {
-			navigationOverlay.enableCompass();
-		}
 		
 		registerReceiver();
 	}
@@ -253,37 +242,53 @@ public class GoToThereActivity extends MapActivity {
 		// Let superclass handle map type/centre point and zoom level
 		super.onRestoreInstanceState(savedInstanceState);
 		
-//		Log.d(TAG, "onRestoreInstanceState()");
+		Log.d(TAG, "onRestoreInstanceState()");
 		
 		int latitude = savedInstanceState.getInt(END_LAT_KEY, -1);
 		int longitude = savedInstanceState.getInt(END_LONG_KEY, -1);
-
-		if (latitude != -1 && longitude != -1) {
-			navigationOverlay.setSelectedLocation(new GeoPoint(latitude, longitude));
-		}
-
-		latitude = savedInstanceState.getInt(START_LAT_KEY, -1);
-		longitude = savedInstanceState.getInt(START_LONG_KEY, -1);
-
-		if (latitude != -1 && longitude != -1) {
-			navigationOverlay.setStartLocation(new GeoPoint(latitude, longitude));
-		}
 		
 		placingMarker = savedInstanceState.getBoolean(PLACING_MARKER_KEY);
 		if (placingMarker) {
 			startMarkerPlacement();
+			
+			// May have tapped an endpoint already
+			if (latitude != -1 && longitude != -1) {
+				navigationOverlay.setSelectedLocation(new GeoPoint(latitude, longitude));
+				directionsImageView.setEnabled(true);
+			} else {
+				directionsImageView.setEnabled(false);
+			}			
 		}
 		
 		navigating = savedInstanceState.getBoolean(NAVIGATING_KEY);
 		if (navigating) {
+
+			navigationOverlay.startNavigating();
+			
+			if (latitude != -1 && longitude != -1) {
+				navigationOverlay.setSelectedLocation(new GeoPoint(latitude, longitude));
+			}
+			
+			latitude = savedInstanceState.getInt(START_LAT_KEY, -1);
+			longitude = savedInstanceState.getInt(START_LONG_KEY, -1);
+
+			if (latitude != -1 && longitude != -1) {
+				navigationOverlay.setStartLocation(new GeoPoint(latitude, longitude));
+			}
+			
 			navigationOverlay.setDirections((MapDirections) savedInstanceState.getSerializable(DIRECTIONS_KEY));
-			directionsImageView.setSelected(!directionsImageView.isSelected());
+			
+			directionsImageView.setSelected(true);
+			directionsImageView.setEnabled(true);
+			
+			markerImageView.setEnabled(false);
 		}
-		
-		if (savedInstanceState.getBoolean(DISPLAY_COMPASS_KEY)) {
-			navigationOverlay.enableCompass();
-			locationImageView.setSelected(!locationImageView.isSelected());
-		}
+				
+		// Save the previousQuery flag as a preference: if the screen is re-oriented
+		// then the activity is killed + restarted, meaning we lose the 
+		// savedInstanceState bundle. This is an easy way to keep track of this flag.
+		SharedPreferences prefs = getPreferences(Activity.MODE_PRIVATE);
+		searchTextView.setText(prefs.getString(PREVIOUS_QUERY, null));
 	}
 
 	/*
@@ -295,7 +300,7 @@ public class GoToThereActivity extends MapActivity {
 		// Superclass handles map type, centre point of map and zoom level
 		super.onSaveInstanceState(outState);
 		
-//		Log.d(TAG, "onSaveInstanceState()");
+		Log.d(TAG, "onSaveInstanceState()");
 		
 		GeoPoint pt = null;
 		
@@ -311,8 +316,6 @@ public class GoToThereActivity extends MapActivity {
 			outState.putInt(START_LONG_KEY, pt.getLongitudeE6());
 		}
 		
-		outState.putBoolean(DISPLAY_COMPASS_KEY, navigationOverlay.isCompassEnabled());
-		
 		// Whether we're placing a marker to navigate to
 		outState.putBoolean(PLACING_MARKER_KEY, placingMarker);
 		
@@ -321,8 +324,11 @@ public class GoToThereActivity extends MapActivity {
 		if (navigating) {
 			outState.putSerializable(DIRECTIONS_KEY, navigationOverlay.getDirections());
 		}
+		
+		SharedPreferences.Editor edit = getPreferences(Activity.MODE_PRIVATE).edit();
+		edit.putString(PREVIOUS_QUERY, searchTextView.getText().toString()).commit();
 	}
-	
+
 	/* 
 	 * (non-Javadoc)
 	 * @see com.google.android.maps.MapActivity#isRouteDisplayed()
@@ -417,21 +423,6 @@ public class GoToThereActivity extends MapActivity {
 			stopMarkerPlacement();
 		}
 	}
-
-	/**
-	 * Handle clicking the location actionbar button.
-	 * 
-	 * @param v View that received the click
-	 */
-	public void onCompassClick(View v) {
-		if (navigationOverlay.isCompassEnabled()) {
-			navigationOverlay.disableCompass();
-		} else {
-			navigationOverlay.enableCompass();
-		}
-		
-		locationImageView.setSelected(!locationImageView.isSelected());
-	}
 		
 	/**
 	 * Called when the user clicks in the edit text field; we pass through to
@@ -467,30 +458,6 @@ public class GoToThereActivity extends MapActivity {
 		navigationOverlay = new NavigationOverlay(this, map);
 		map.getOverlays().add(navigationOverlay);
 		navigationOverlay.enableMyLocation();
-		navigationOverlay.runOnFirstFix(new Runnable() {
-			public void run() {
-				map.getController().setZoom(17); 
-				map.getController().animateTo(navigationOverlay.getMyLocation());
-			}
-		});
-		
-		// Set the map centre. Use the last known GPS location if there is one,
-		// otherwise centre on UK
-		LocationManager locationManager = 
-    		(LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
-		Location last = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-		
-		GeoPoint pt = null;
-		if (last != null) {
-			pt = new GeoPoint((int) (last.getLatitude() * 1E6), (int) (last.getLongitude() * 1E6));
-			map.getController().setZoom(17);
-		} else {
-			// Centre on UK for moment
-			pt = new GeoPoint((int) (53.354203 * 1E6), (int) (-2.117468 * 1E6));
-			map.getController().setZoom(7);
-		}
-		
-		map.getController().setCenter(pt);	
 	}
 	
 	/**
@@ -572,7 +539,7 @@ public class GoToThereActivity extends MapActivity {
 		placingMarker = true;
 		navigationOverlay.setPlacingMarker(placingMarker);
 		
-		markerImageView.setSelected(!markerImageView.isSelected());
+		markerImageView.setSelected(true);
 	}
 	
 	/**
@@ -580,10 +547,9 @@ public class GoToThereActivity extends MapActivity {
 	 */
 	private void stopMarkerPlacement() {
 		placingMarker = false;
-		
 		navigationOverlay.setPlacingMarker(placingMarker);
 		
-		markerImageView.setSelected(!markerImageView.isSelected());
+		markerImageView.setSelected(false);
 	}	
 	
 	/**
@@ -594,10 +560,10 @@ public class GoToThereActivity extends MapActivity {
 	private void startNavigation() {
 		navigating = true;
 		
-		directionsImageView.setSelected(!directionsImageView.isSelected());
+		directionsImageView.setSelected(true);
 		markerImageView.setEnabled(false);
 		
-		navigationOverlay.setNavigating(navigating);
+		navigationOverlay.startNavigating();
 		
 		if (navigationOverlay.getMyLocation() != null) {
 			getDirections();
@@ -637,14 +603,15 @@ public class GoToThereActivity extends MapActivity {
 	 */
 	private void stopNavigation() {
 		navigating = false;
-		navigationOverlay.reset();
+		navigationOverlay.stopNavigating();
 		map.invalidate();	
 		
 		if (searchTextView.getText().length() > 0) {
 			searchTextView.setText(null);
+			
 		}
 		
-		directionsImageView.setSelected(!directionsImageView.isSelected());
+		directionsImageView.setSelected(false);
 		directionsImageView.setEnabled(false);
 		markerImageView.setEnabled(true);
 		
@@ -719,21 +686,58 @@ public class GoToThereActivity extends MapActivity {
 	 * on it.
 	 */
 	private void geocodeResult(String address) {
+		Log.d(TAG, "geocodeResult()");
 		Geocoder geo = new Geocoder(this, Locale.getDefault());
 		try {
 			List<Address> addresses = geo.getFromLocationName(address, 10);			// Hmmmm, 1?
 			if (addresses.size() > 0) {
 				GeoPoint pt = new GeoPoint((int) (addresses.get(0).getLatitude() * 1e6),
 						(int) (addresses.get(0).getLongitude() * 1e6));
+				directionsImageView.setEnabled(true);
 				navigationOverlay.setSelectedLocation(pt, this);
 				map.getController().animateTo(pt);
+				startMarkerPlacement();
+				
+	            searchTextView.setText(address);
 			} else {
 				Toast.makeText(this, R.string.error_not_found_text, Toast.LENGTH_SHORT).show();
 				searchTextView.setText(null);
 			}
 		} catch (IOException ioe) {
-			// errors
+			Log.e(TAG, "Could not geocode '" + address + "'", ioe);
+			Toast.makeText(this, R.string.error_general_text, Toast.LENGTH_SHORT).show();
 		}
+	}
+	
+	/**
+	 * Handle any intents passed into the activity. Currently we only deal with
+	 * on, ACTION_SEARCH, which means we've been given a query string to search
+	 * for via the quick search box. We'll also handle the case where the activity
+	 * is restarted due to orientation changes; in this situation we still have the 
+	 * intent with ACTION_SEARCH, so we check if we've already processed it; if so
+	 * don't bother geocoding.
+	 * 
+	 * @param intent The intent to process
+	 * @param savedInstanceState The bundle passed into the activity on (re)start
+	 */
+	private void handleIntent(Intent intent, Bundle savedInstanceState) {
+		
+        if (intent.getAction().equals(Intent.ACTION_SEARCH)) {
+        	Log.d(TAG, "Started as a result of ACTION_SEARCH");
+        	String query = intent.getStringExtra(SearchManager.QUERY);
+
+        	SharedPreferences prefs = getPreferences(Activity.MODE_PRIVATE);
+        	String previousQuery = prefs.getString(PREVIOUS_QUERY, null);
+        	if (previousQuery == null || !previousQuery.equals(query)) {
+        		Log.d(TAG, "    Haven't processed this query before");
+        		SearchRecentSuggestions suggestions = 
+        			new SearchRecentSuggestions(this, 
+        					GoToThereSuggestionProvider.AUTHORITY, GoToThereSuggestionProvider.MODE);
+	            suggestions.saveRecentQuery(query, null);
+	            
+	            geocodeResult(query);	            
+        	} // Else UI stuff set up by onRestoreInstanceState() 
+        }
 	}
 	
 // Inner AsyncTask
@@ -837,6 +841,7 @@ public class GoToThereActivity extends MapActivity {
 		protected void onPostExecute(MapDirections directions) {
 			if (directions.getError() < 0) {
 				navigationOverlay.setDirections(directions);
+				map.getController().animateTo(navigationOverlay.getMyLocation());
 		        map.invalidate();
 			} else {
 				stopNavigation();
